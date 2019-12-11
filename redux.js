@@ -66,24 +66,27 @@ function createStore(reducer, preloadedState, enhancer) {
   if (typeof preloadedState === 'function' && typeof enhancer === 'function' || typeof enhancer === 'function' && typeof arguments[3] === 'function') {
     throw new Error('It looks like you are passing several store enhancers to ' + 'createStore(). This is not supported. Instead, compose them ' + 'together to a single function');
   }
-
+  // 1.兼容参数位置
   if (typeof preloadedState === 'function' && typeof enhancer === 'undefined') {
     enhancer = preloadedState;
     preloadedState = undefined;
   }
 
+  // 2.如何有enhancer，且enhancer是函数
   if (typeof enhancer !== 'undefined') {
     if (typeof enhancer !== 'function') {
       throw new Error('Expected the enhancer to be a function.');
     }
-
+    // 2.1执行enhancer，返回一个新的createStore函数
     return enhancer(createStore)(reducer, preloadedState);
   }
 
+  // 3.边界处理，reducer必须是函数
   if (typeof reducer !== 'function') {
     throw new Error('Expected the reducer to be a function.');
   }
 
+  // 4.备份变量
   var currentReducer = reducer;
   var currentState = preloadedState;
   var currentListeners = [];
@@ -287,9 +290,11 @@ function createStore(reducer, preloadedState, enhancer) {
   // the initial state tree.
 
 
+  // 抛出初始化
   dispatch({
     type: ActionTypes.INIT
   });
+  // 返回一个对象，包含dispatch、subscribe、getState、replaceReducer等方法
   return _ref2 = {
     dispatch: dispatch,
     subscribe: subscribe,
@@ -558,20 +563,26 @@ function _objectSpread(target) {
  * (...args) => f(g(h(...args))).
  */
 function compose() {
+  // 1.将喊出参数，转成真正的数组
   for (var _len = arguments.length, funcs = new Array(_len), _key = 0; _key < _len; _key++) {
     funcs[_key] = arguments[_key];
   }
 
+  // 2.没有enhancer，返回一个空函数
+  // 2.1这儿在createStore的时候，会传入createStore，最后返回createStore
   if (funcs.length === 0) {
     return function (arg) {
       return arg;
     };
   }
 
+  // 3.如果有一个，返回第一个
   if (funcs.length === 1) {
     return funcs[0];
   }
 
+  // 4.否则通过reduce函数
+  // 4.1传入a,b,c,d后，返回a(b(c(d(...))))
   return funcs.reduce(function (a, b) {
     return function () {
       return a(b.apply(void 0, arguments));
@@ -597,33 +608,40 @@ function compose() {
  */
 
 function applyMiddleware() {
+  // 1.将喊出参数，转成真正的数组
   for (var _len = arguments.length, middlewares = new Array(_len), _key = 0; _key < _len; _key++) {
     middlewares[_key] = arguments[_key];
   }
 
+  // 2.返回函数，这个函数的调用是在createStore中调用，
+  // 2.1第81行return enhancer(createStore)(reducer, preloadedState);
   return function (createStore) {
     return function () {
-      // 此时arguments为reducer，repayloadState， 再次执行createStore函数
-      var store = createStore.apply(void 0, arguments);
-      /**
-       * 此时store为一个对象
+      // 2.2此时arguments为reducer，repayloadState， 再次执行createStore函数
+      /**2.3
+       * 此时store为一个包含操作方法的对象
        * store = { dispatch, subscribe, getState, replaceReducer }
        */
+      var store = createStore.apply(void 0, arguments);
 
+       // 2.4异常处理
       var _dispatch = function dispatch() {
         throw new Error("Dispatching while constructing your middleware is not allowed. " + "Other middleware would not be applied to this dispatch.");
       };
 
+      // 3.构建需要传入中间件的参数
       var middlewareAPI = {
         getState: store.getState, // 返回当前currentState
         dispatch: function dispatch() {
           return _dispatch.apply(void 0, arguments);
         }
       };
-      // 执行中间件，返回一组函数数组
+      // 4.执行中间件，返回一组中间件执行后的函数数组
       var chain = middlewares.map(function (middleware) {
         return middleware(middlewareAPI);
       });
+      // 5.将中间件执行后的函数数组用compose整合为一个函数后，将原本的dispatch方法作为参数传入函数
+      // 5.1最后得到的就是一个新的dispatch函数
       _dispatch = compose.apply(void 0, chain)(store.dispatch);
       // 下面这个方法相当于把store与{dispatch: _dispatch}整合到一起，替换store之前的dispatch方法
       return _objectSpread({}, store, {
